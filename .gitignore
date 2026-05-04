@@ -37,3 +37,15 @@ build_err.log
 
 # Local config
 deploy.ps1
+
+# OpenNext build output
+.open-next/
+
+# Temp files
+do-build.js
+start-public.js
+lt
+lt.cmd
+lt.ps1
+tunnel_output.log
+public-url.txt
