@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+.next/
+out/
+dist/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Editor
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Temp build scripts
+build.bat
+run-build.ps1
+run-build.js
+build_result.log
+server.log
+build2.log
+build_full.log
+build_out.log
+build_err.log
+
+# Local config
+deploy.ps1
