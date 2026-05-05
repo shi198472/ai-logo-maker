@@ -2,6 +2,7 @@
   "name": "ai-logo-maker",
   "version": "1.0.0",
   "private": true,
+  "root": true,
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
@@ -11,7 +12,7 @@
   "dependencies": {
     "@stripe/stripe-js": "^3.0.0",
     "clsx": "^2.1.0",
-    "lucide-react": "^0.350.0",
+    "lucide-react": "^1.14.0",
     "next": "^16.0.0",
     "next-auth": "^5.0.0-beta.25",
     "react": "^19.0.0",
@@ -19,6 +20,7 @@
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260505.1",
+    "@opennextjs/cloudflare": "^1.19.6",
     "@tailwindcss/postcss": "^4.0.0",
     "@types/node": "^20.0.0",
     "@types/react": "^19.0.0",
