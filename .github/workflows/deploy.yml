@@ -1,4 +1,4 @@
-name: Deploy to Cloudflare Pages (OpenNext)
+name: Deploy to Cloudflare Workers (OpenNext)
 
 on:
   push:
@@ -41,14 +41,16 @@ jobs:
           fi
           echo "✅ OpenNext build verified"
 
-      - name: Deploy to Cloudflare Pages
-        uses: cloudflare/wrangler-action@v3
-        with:
-          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          command: pages deploy .open-next/ --project-name=ai-logo-maker --yes
-
-      - name: Verify deployment
+      - name: Deploy to Cloudflare Workers
         run: |
-          echo "Deployment complete!"
-          echo "Site URL: https://ai-logo-maker-a6d.pages.dev"
+          ./node_modules/.bin/opennextjs-cloudflare deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Get Worker URL
+        run: |
+          echo "✅ Deployment complete!"
+          echo "Worker URL: https://ai-logo-maker.${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.workers.dev"
+          echo ""
+          echo "⚠️  请在 Cloudflare 仪表板配置自定义域名，或更新前端 API_URL"
