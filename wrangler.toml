@@ -1,6 +1,7 @@
 name = "ai-logo-maker"
 compatibility_date = "2026-05-01"
-pages_build_output_dir = ".vercel/output/static"
+pages_build_output_dir = "out"
 
-# 如需绑定自定义域名，取消注释下行
-# route = { pattern = "yourdomain.com/*", zone_id = "" }
+# Workers AI 绑定（用于生成 Logo 图片）
+[ai]
+binding = "AI"

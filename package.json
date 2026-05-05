@@ -6,20 +6,19 @@
     "dev": "next dev --turbopack",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
-    "deploy": "npx @opennextjs/cloudflare"
+    "lint": "next lint"
   },
   "dependencies": {
     "@stripe/stripe-js": "^3.0.0",
     "clsx": "^2.1.0",
-    "lucide-react": "^1.14.0",
+    "lucide-react": "^0.350.0",
     "next": "^16.0.0",
-    "next-auth": "^5.0.0-beta.31",
+    "next-auth": "^5.0.0-beta.25",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
   "devDependencies": {
-    "@opennextjs/cloudflare": "^1.19.5",
+    "@cloudflare/workers-types": "^4.20260505.1",
     "@tailwindcss/postcss": "^4.0.0",
     "@types/node": "^20.0.0",
     "@types/react": "^19.0.0",
