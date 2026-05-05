@@ -41,112 +41,120 @@ const COLOR_SCHEMES = [
   { primary: 'orange', secondary: 'dark red accent' },
 ];
 
-export const onRequestPost = async ({ request, env }: { request: Request; env: Env }) => {
-  // CORS 预检
-  if (request.method === 'OPTIONS') {
-    return new Response(null, {
-      headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'POST, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type',
-      },
-    })
-  }
+// CORS headers 复用
+const CORS_HEADERS: Record<string, string> = {
+  'Access-Control-Allow-Origin': '*',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  'Access-Control-Allow-Headers': 'Content-Type',
+};
 
-  try {
-    let body: GenerateRequest
-    try {
-      body = await request.json()
-    } catch {
-      return jsonResponse({ error: '无效的请求格式' }, 400)
-    }
-
-    const { brandName, industry = 'tech', style = 'modern' } = body
-
-    if (!brandName || brandName.trim().length === 0) {
-      return jsonResponse({ error: '品牌名称不能为空' }, 400)
-    }
-
-    const brand = brandName.trim().slice(0, 50)
-    const industryPrompt = INDUSTRY_PROMPTS[industry] || INDUSTRY_PROMPTS.other
-    const stylePrompt = STYLE_PROMPTS[style] || STYLE_PROMPTS.modern
-
-    // 构建 AI 提示词
-    const aiPrompt = `Professional minimalist logo design for brand "${brand}". ${industryPrompt}. ${stylePrompt}. ` +
-      `Clean white background, centered icon, no text or words, vector style, high contrast, ` +
-      `award winning design quality, suitable for commercial use, white background`
-
-    // 检查 AI 绑定是否存在
-    if (!env.AI) {
-      // AI 未配置，返回降级演示数据
-      return jsonResponse({
-        success: true,
-        logos: buildFallbackLogos(brand, industry, style),
-        fallback: true,
-      })
-    }
-
-    // 并发生成6款
-    const tasks = COLOR_SCHEMES.map(async (scheme, i) => {
-      try {
-        const fullPrompt = aiPrompt + `, color palette: ${scheme.primary} as dominant color with ${scheme.secondary}`
-        const result = await env.AI.run('@cf/stabilityai/stable-diffusion-xl-base-1.0', {
-          prompt: fullPrompt,
-          negative_prompt: 'text, words, letters, watermark, signature, blurry, low quality, distorted, ugly',
-          width: 1024,
-          height: 1024,
-          num_steps: 25,
-        })
-
-        const base64 = (result as any)?.image
-        return {
-          id: i + 1,
-          name: ['Core', 'Nova', 'Peak', 'Lux', 'Arc', 'Zoe'][i],
-          colors: [`${scheme.primary}`, `${scheme.secondary}`],
-          imageData: base64 || null,
-          description: `${stylePrompt.split(' ')[0]} · ${industryPrompt.split(' ')[0]}`,
-        }
-      } catch (err: any) {
-        return {
-          id: i + 1,
-          name: ['Core', 'Nova', 'Peak', 'Lux', 'Arc', 'Zoe'][i],
-          colors: [`${scheme.primary}`, `${scheme.secondary}`],
-          imageData: null,
-          error: err?.message || '生成失败',
-          description: '',
-        }
-      }
-    })
-
-    const results = await Promise.all(tasks)
-    return jsonResponse({ success: true, logos: results })
-  } catch (err: any) {
-    return jsonResponse({ error: err?.message || '服务器内部错误' }, 500)
-  }
-}
-
-// 降级：返回演示占位符数据（AI未启用时）
-function buildFallbackLogos(brand: string, industry: string, style: string) {
-  const industryPrompt = INDUSTRY_PROMPTS[industry] || INDUSTRY_PROMPTS.other
-  const stylePrompt = STYLE_PROMPTS[style] || STYLE_PROMPTS.modern
-  return COLOR_SCHEMES.map((scheme, i) => ({
-    id: i + 1,
-    name: ['Core', 'Nova', 'Peak', 'Lux', 'Arc', 'Zoe'][i],
-    colors: [`${scheme.primary}`, `${scheme.secondary}`],
-    imageData: null,
-    error: null,
-    description: `${stylePrompt.split(' ')[0]} · ${industryPrompt.split(' ')[0]}`,
-  }))
-}
-
-function jsonResponse(data: any, status = 200) {
+// 统一 JSON 响应
+function jsonResponse(data: any, status = 200): Response {
   return new Response(JSON.stringify(data), {
     status,
     headers: {
       'Content-Type': 'application/json',
-      'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Methods': 'POST, OPTIONS',
-      'Access-Control-Allow-Headers': 'Content-Type',
+      ...CORS_HEADERS,
     },
-  })
+  });
+}
+
+export const onRequest = async (context: { request: Request; env: Env }) => {
+  const { request, env } = context;
+
+  // 1. 处理 OPTIONS 预检请求
+  if (request.method === 'OPTIONS') {
+    return new Response(null, {
+      headers: CORS_HEADERS,
+    });
+  }
+
+  // 2. 只接受 POST
+  if (request.method !== 'POST') {
+    return jsonResponse({ error: 'Method not allowed' }, 405);
+  }
+
+  // 3. 解析请求体
+  let body: GenerateRequest;
+  try {
+    body = await request.json();
+  } catch {
+    return jsonResponse({ error: '无效的请求格式' }, 400);
+  }
+
+  const { brandName, industry = 'tech', style = 'modern' } = body;
+
+  if (!brandName || brandName.trim().length === 0) {
+    return jsonResponse({ error: '品牌名称不能为空' }, 400);
+  }
+
+  const brand = brandName.trim().slice(0, 50);
+  const industryPrompt = INDUSTRY_PROMPTS[industry] || INDUSTRY_PROMPTS.other;
+  const stylePrompt = STYLE_PROMPTS[style] || STYLE_PROMPTS.modern;
+
+  // 构建 AI 提示词
+  const aiPrompt = `Professional minimalist logo design for brand "${brand}". ${industryPrompt}. ${stylePrompt}. ` +
+    `Clean white background, centered icon, no text or words, vector style, high contrast, ` +
+    `award winning design quality, suitable for commercial use, white background`;
+
+  // 检查 AI 绑定是否存在
+  if (!env.AI) {
+    console.warn('AI binding not found, returning fallback data');
+    return jsonResponse({
+      success: true,
+      logos: buildFallbackLogos(brand, industry, style),
+      fallback: true,
+      message: 'AI 未配置，返回演示数据。请在 Cloudflare 仪表板启用 Workers AI。',
+    });
+  }
+
+  // 并发生成6款
+  const tasks = COLOR_SCHEMES.map(async (scheme, i) => {
+    try {
+      const fullPrompt = aiPrompt + `, color palette: ${scheme.primary} as dominant color with ${scheme.secondary}`;
+      const result: any = await env.AI.run('@cf/stabilityai/stable-diffusion-xl-base-1.0', {
+        prompt: fullPrompt,
+        negative_prompt: 'text, words, letters, watermark, signature, blurry, low quality, distorted, ugly',
+        width: 1024,
+        height: 1024,
+        num_steps: 25,
+      });
+
+      const base64 = result?.image;
+      return {
+        id: i + 1,
+        name: ['Core', 'Nova', 'Peak', 'Lux', 'Arc', 'Zoe'][i],
+        colors: [scheme.primary, scheme.secondary],
+        imageData: base64 || null,
+        description: `${stylePrompt.split(' ')[0]} · ${industryPrompt.split(' ')[0]}`,
+      };
+    } catch (err: any) {
+      console.error(`Logo ${i + 1} generation failed:`, err);
+      return {
+        id: i + 1,
+        name: ['Core', 'Nova', 'Peak', 'Lux', 'Arc', 'Zoe'][i],
+        colors: [scheme.primary, scheme.secondary],
+        imageData: null,
+        error: err?.message || '生成失败',
+        description: '',
+      };
+    }
+  });
+
+  const results = await Promise.all(tasks);
+  return jsonResponse({ success: true, logos: results });
+};
+
+// 降级：返回演示占位符数据（AI未启用时）
+function buildFallbackLogos(brand: string, industry: string, style: string) {
+  const industryPrompt = INDUSTRY_PROMPTS[industry] || INDUSTRY_PROMPTS.other;
+  const stylePrompt = STYLE_PROMPTS[style] || STYLE_PROMPTS.modern;
+  return COLOR_SCHEMES.map((scheme, i) => ({
+    id: i + 1,
+    name: ['Core', 'Nova', 'Peak', 'Lux', 'Arc', 'Zoe'][i],
+    colors: [scheme.primary, scheme.secondary],
+    imageData: null,
+    error: null,
+    description: `${stylePrompt.split(' ')[0]} · ${industryPrompt.split(' ')[0]}`,
+  }));
 }
