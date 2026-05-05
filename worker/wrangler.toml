@@ -1,0 +1,7 @@
+name = "ai-logo-maker-api"
+compatibility_date = "2026-05-01"
+main = "src/index.ts"
+
+# Workers AI 绑定
+[ai]
+binding = "AI"
