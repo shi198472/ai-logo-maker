@@ -1,5 +1,8 @@
-export interface Env {
-  AI: Ai;
+// Cloudflare Pages Function: /api/generate
+// 对接 Workers AI (Stable Diffusion XL) 生成真实 Logo 图片
+
+interface Env {
+  AI: any;
 }
 
 interface GenerateRequest {
@@ -8,92 +11,142 @@ interface GenerateRequest {
   style: string;
 }
 
-// 行业→英文提示词映射
+// 行业→英文提示词
 const INDUSTRY_PROMPTS: Record<string, string> = {
-  tech: 'technology company, futuristic, digital innovation',
-  food: 'restaurant, culinary, food and dining, warm atmosphere',
-  education: 'education, learning, knowledge, academic',
-  health: 'healthcare, medical, wellness, clean and professional',
-  retail: 'retail, shopping, commerce, vibrant',
-  other: 'professional, versatile business',
-};
+  tech: 'technology company, futuristic, digital innovation, clean professional',
+  food: 'restaurant, culinary, food and dining, warm inviting atmosphere',
+  education: 'education, learning, knowledge, academic institution',
+  health: 'healthcare, medical, wellness, clean trustworthy professional',
+  retail: 'retail, shopping, commerce, vibrant modern brand',
+  other: 'professional versatile business, clean minimal brand',
+}
 
-// 风格→英文提示词映射
+// 风格→英文提示词
 const STYLE_PROMPTS: Record<string, string> = {
-  minimal: 'minimalist logo, clean lines, simple geometric shapes, flat design',
-  modern: 'modern logo, sleek, contemporary, bold typography',
-  vintag: 'vintage logo, retro style, classic emblem, ornate details',
-  tech: 'tech logo, circuit patterns, digital aesthetic, neon accents',
-  artistic: 'artistic logo, creative, hand-drawn feel, expressive',
-  cartoon: 'playful logo, friendly, rounded shapes, fun and vibrant',
-};
+  minimal: 'minimalist logo design, clean lines, simple geometric shapes, flat design, negative space',
+  modern: 'modern logo design, sleek contemporary style, bold clean typography, professional',
+  vintage: 'vintage retro logo, classic emblem style, timeless elegance, traditional craft',
+  tech: 'tech startup logo, circuit patterns, digital aesthetic, futuristic innovation',
+  artistic: 'artistic creative logo, expressive unique design, hand-drawn quality, creative',
+  cartoon: 'playful fun logo, friendly character style, rounded shapes, cheerful vibrant',
+}
 
-// 颜色方案
+// 6种颜色方案
 const COLOR_SCHEMES = [
-  { primary: 'deep blue', secondary: 'purple' },
-  { primary: 'warm orange', secondary: 'red' },
-  { primary: 'forest green', secondary: 'teal' },
-  { primary: 'hot pink', secondary: 'purple' },
-  { primary: 'cyan', secondary: 'blue' },
-  { primary: 'orange', secondary: 'dark red' },
+  { primary: 'deep blue', secondary: 'purple accent' },
+  { primary: 'warm orange', secondary: 'red accent' },
+  { primary: 'forest green', secondary: 'teal accent' },
+  { primary: 'hot pink', secondary: 'violet accent' },
+  { primary: 'bright cyan', secondary: 'blue accent' },
+  { primary: 'orange', secondary: 'dark red accent' },
 ];
 
-export const onRequestPost: PagesFunction<Env> = async (context) => {
-  try {
-    const body: GenerateRequest = await context.request.json();
-    const { brandName, industry = 'tech', style = 'modern' } = body;
+export const onRequestPost = async ({ request, env }: { request: Request; env: Env }) => {
+  // CORS 预检
+  if (request.method === 'OPTIONS') {
+    return new Response(null, {
+      headers: {
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type',
+      },
+    })
+  }
 
-    if (!brandName || brandName.trim().length === 0) {
-      return Response.json({ error: '品牌名称不能为空' }, { status: 400 });
+  try {
+    let body: GenerateRequest
+    try {
+      body = await request.json()
+    } catch {
+      return jsonResponse({ error: '无效的请求格式' }, 400)
     }
 
-    // 并发生成6款方案
-    const schemes = COLOR_SCHEMES;
-    const results = await Promise.allSettled(
-      schemes.map(async (scheme, i) => {
-        const industryPrompt = INDUSTRY_PROMPTS[industry] || INDUSTRY_PROMPTS.other;
-        const stylePrompt = STYLE_PROMPTS[style] || STYLE_PROMPTS.modern;
+    const { brandName, industry = 'tech', style = 'modern' } = body
 
-        const prompt = `Professional logo design for brand "${brandName}". ${industryPrompt}. ${stylePrompt}. ` +
-          `Color scheme: ${scheme.primary} and ${scheme.secondary}. ` +
-          `Flat vector style, white background, no text, iconic symbol only, high quality, 8k`;
+    if (!brandName || brandName.trim().length === 0) {
+      return jsonResponse({ error: '品牌名称不能为空' }, 400)
+    }
 
-        // 调用 Workers AI (Stable Diffusion XL)
-        const response = await context.env.AI.run('@cf/stabilityai/stable-diffusion-xl-base-1.0' as any, {
-          prompt,
-          negative_prompt: 'text, words, letters, typography, watermark, signature, blurry, low quality',
-          width: 512,
-          height: 512,
-        } as any);
+    const brand = brandName.trim().slice(0, 50)
+    const industryPrompt = INDUSTRY_PROMPTS[industry] || INDUSTRY_PROMPTS.other
+    const stylePrompt = STYLE_PROMPTS[style] || STYLE_PROMPTS.modern
 
+    // 构建 AI 提示词
+    const aiPrompt = `Professional minimalist logo design for brand "${brand}". ${industryPrompt}. ${stylePrompt}. ` +
+      `Clean white background, centered icon, no text or words, vector style, high contrast, ` +
+      `award winning design quality, suitable for commercial use, white background`
+
+    // 检查 AI 绑定是否存在
+    if (!env.AI) {
+      // AI 未配置，返回降级演示数据
+      return jsonResponse({
+        success: true,
+        logos: buildFallbackLogos(brand, industry, style),
+        fallback: true,
+      })
+    }
+
+    // 并发生成6款
+    const tasks = COLOR_SCHEMES.map(async (scheme, i) => {
+      try {
+        const fullPrompt = aiPrompt + `, color palette: ${scheme.primary} as dominant color with ${scheme.secondary}`
+        const result = await env.AI.run('@cf/stabilityai/stable-diffusion-xl-base-1.0', {
+          prompt: fullPrompt,
+          negative_prompt: 'text, words, letters, watermark, signature, blurry, low quality, distorted, ugly',
+          width: 1024,
+          height: 1024,
+          num_steps: 25,
+        })
+
+        const base64 = (result as any)?.image
         return {
           id: i + 1,
           name: ['Core', 'Nova', 'Peak', 'Lux', 'Arc', 'Zoe'][i],
-          colors: [scheme.primary, scheme.secondary],
-          imageData: (response as any).image,
-          description: `${stylePrompt} · ${industryPrompt}`,
-        };
-      })
-    );
+          colors: [`${scheme.primary}`, `${scheme.secondary}`],
+          imageData: base64 || null,
+          description: `${stylePrompt.split(' ')[0]} · ${industryPrompt.split(' ')[0]}`,
+        }
+      } catch (err: any) {
+        return {
+          id: i + 1,
+          name: ['Core', 'Nova', 'Peak', 'Lux', 'Arc', 'Zoe'][i],
+          colors: [`${scheme.primary}`, `${scheme.secondary}`],
+          imageData: null,
+          error: err?.message || '生成失败',
+          description: '',
+        }
+      }
+    })
 
-    const logos = results.map((r, i) => {
-      if (r.status === 'fulfilled') return r.value;
-      // 降级：返回占位符
-      return {
-        id: i + 1,
-        name: ['Core', 'Nova', 'Peak', 'Lux', 'Arc', 'Zoe'][i],
-        colors: [schemes[i].primary, schemes[i].secondary],
-        imageData: null,
-        error: (r as PromiseRejectedResult).reason?.message || '生成失败',
-        description: '',
-      };
-    });
-
-    return Response.json({ success: true, logos });
+    const results = await Promise.all(tasks)
+    return jsonResponse({ success: true, logos: results })
   } catch (err: any) {
-    return Response.json(
-      { error: err.message || '服务器错误' },
-      { status: 500 }
-    );
+    return jsonResponse({ error: err?.message || '服务器内部错误' }, 500)
   }
-};
+}
+
+// 降级：返回演示占位符数据（AI未启用时）
+function buildFallbackLogos(brand: string, industry: string, style: string) {
+  const industryPrompt = INDUSTRY_PROMPTS[industry] || INDUSTRY_PROMPTS.other
+  const stylePrompt = STYLE_PROMPTS[style] || STYLE_PROMPTS.modern
+  return COLOR_SCHEMES.map((scheme, i) => ({
+    id: i + 1,
+    name: ['Core', 'Nova', 'Peak', 'Lux', 'Arc', 'Zoe'][i],
+    colors: [`${scheme.primary}`, `${scheme.secondary}`],
+    imageData: null,
+    error: null,
+    description: `${stylePrompt.split(' ')[0]} · ${industryPrompt.split(' ')[0]}`,
+  }))
+}
+
+function jsonResponse(data: any, status = 200) {
+  return new Response(JSON.stringify(data), {
+    status,
+    headers: {
+      'Content-Type': 'application/json',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'POST, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type',
+    },
+  })
+}
