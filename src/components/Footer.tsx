@@ -9,19 +9,28 @@ export default function Footer() {
         <div>
           <h4 className="font-bold text-white mb-3 font-[Space_Grotesk]">产品</h4>
           <ul className="space-y-2 text-sm font-[DM_Sans]">
-            <li>功能</li><li>定价</li><li>案例</li><li>FAQ</li>
+            <li><a href="/features" className="hover:text-white transition-colors">功能</a></li>
+            <li><a href="/pricing" className="hover:text-white transition-colors">定价</a></li>
+            <li><a href="/cases" className="hover:text-white transition-colors">案例</a></li>
+            <li><a href="/faq" className="hover:text-white transition-colors">FAQ</a></li>
           </ul>
         </div>
         <div>
           <h4 className="font-bold text-white mb-3 font-[Space_Grotesk]">公司</h4>
           <ul className="space-y-2 text-sm font-[DM_Sans]">
-            <li>关于</li><li>博客</li><li>合作伙伴</li><li>联系我们</li>
+            <li><a href="/about" className="hover:text-white transition-colors">关于</a></li>
+            <li><a href="/about" className="hover:text-white transition-colors">博客</a></li>
+            <li><a href="/about" className="hover:text-white transition-colors">合作伙伴</a></li>
+            <li><a href="/contact" className="hover:text-white transition-colors">联系我们</a></li>
           </ul>
         </div>
         <div>
           <h4 className="font-bold text-white mb-3 font-[Space_Grotesk]">法律</h4>
           <ul className="space-y-2 text-sm font-[DM_Sans]">
-            <li>隐私政策</li><li>服务条款</li><li>Cookie政策</li><li>退款政策</li>
+            <li><a href="/privacy" className="hover:text-white transition-colors">隐私政策</a></li>
+            <li><a href="/terms" className="hover:text-white transition-colors">服务条款</a></li>
+            <li><a href="/privacy" className="hover:text-white transition-colors">Cookie政策</a></li>
+            <li><a href="/terms" className="hover:text-white transition-colors">退款政策</a></li>
           </ul>
         </div>
       </div>

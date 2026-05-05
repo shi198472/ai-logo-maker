@@ -1,7 +1,7 @@
 'use client'
 import { useState } from 'react'
 
-export default function Hero() {
+export default function Hero({ onGetStarted }: { onGetStarted?: () => void }) {
   const [brandName, setBrandName] = useState('')
   const [industry, setIndustry] = useState('tech')
 
@@ -37,7 +37,10 @@ export default function Hero() {
               <option value="other">其他</option>
             </select>
           </div>
-          <button className="w-full bg-[#FF6B6B] hover:bg-[#ff5252] text-white font-bold py-3 px-8 rounded-xl text-lg transition-all duration-200 transform hover:scale-[1.02] font-[Space_Grotesk]">
+          <button
+            onClick={onGetStarted}
+            className="w-full bg-[#FF6B6B] hover:bg-[#ff5252] text-white font-bold py-3 px-8 rounded-xl text-lg transition-all duration-200 transform hover:scale-[1.02] font-[Space_Grotesk]"
+          >
             ✨ 免费生成我的Logo
           </button>
           <p className="text-sm text-gray-400 mt-3 font-[DM_Sans]">无需信用卡 · 30秒出方案</p>
