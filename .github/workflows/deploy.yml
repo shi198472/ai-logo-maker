@@ -51,7 +51,16 @@ jobs:
           fi
 
       - name: Deploy to Cloudflare Workers
-        run: npx --no-install opennextjs-cloudflare deploy
+        run: |
+          echo "Creating wrangler config..."
+          cat > wrangler.toml << 'EOF'
+          name = "ai-logo-maker"
+          main = ".open-next/worker.js"
+          compatibility_date = "2024-12-01"
+          compatibility_flags = ["nodejs_compat"]
+          EOF
+          echo "Deploying..."
+          npx --no-install wrangler deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
