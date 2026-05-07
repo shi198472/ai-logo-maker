@@ -2,7 +2,6 @@
   "name": "ai-logo-maker",
   "version": "1.0.0",
   "private": true,
-  "root": true,
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
@@ -21,6 +20,7 @@
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260505.1",
     "@opennextjs/cloudflare": "^1.19.6",
+    "wrangler": "^4.0.0",
     "@tailwindcss/postcss": "^4.0.0",
     "@types/node": "^20.0.0",
     "@types/react": "^19.0.0",
