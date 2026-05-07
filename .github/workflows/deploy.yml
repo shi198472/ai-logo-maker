@@ -25,39 +25,70 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: 'npm'
 
+      - name: Debug - Check environment
+        run: |
+          echo "Node version: $(node --version)"
+          echo "NPM version: $(npm --version)"
+          echo "Current directory: $(pwd)"
+          echo "Directory contents:"
+          ls -la
+          echo "---"
+          echo "Package.json exists: $(test -f package.json && echo 'yes' || echo 'no')"
+
       - name: Install dependencies
-        run: npm install --legacy-peer-deps
+        run: |
+          npm install --legacy-peer-deps
+          echo "---"
+          echo "node_modules/@opennextjs/cloudflare exists: $(test -d node_modules/@opennextjs/cloudflare && echo 'yes' || echo 'no')"
 
       - name: Build with OpenNext
-        run: npx opennextjs-cloudflare build
+        run: |
+          echo "=== Step 1: Try next build directly ==="
+          npx next build 2>&1 || echo "next build failed"
+          echo ""
+          echo "=== Step 2: Run OpenNext build ==="
+          # 先检查二进制是否存在
+          if [ -f "node_modules/.bin/opennextjs-cloudflare" ]; then
+            echo "Using local binary..."
+            node node_modules/@opennextjs/cloudflare/dist/cli/index.js build 2>&1
+          else
+            echo "Binary not found at expected path, listing:"
+            ls -la node_modules/.bin/ | grep -i open
+            echo "Trying npx..."
+            npx --package @opennextjs/cloudflare opennextjs-cloudflare build 2>&1
+          fi
         env:
           NODE_ENV: production
 
-      - name: Verify build output (list all files)
+      - name: Verify build output
         run: |
-          find .open-next -type f 2>/dev/null | head -30
-          echo "---"
-          if [ -f ".open-next/worker.js" ]; then
-            echo "✅ worker.js found"
+          echo "Checking .open-next directory..."
+          if [ -d ".open-next" ]; then
+            echo ".open-next directory exists"
+            ls -la .open-next/
+            if [ -f ".open-next/worker.js" ]; then
+              echo "✅ worker.js found"
+            else
+              echo "❌ worker.js not found"
+              exit 1
+            fi
           else
-            echo "⚠️ worker.js not found, listing .open-next:"
-            ls -la .open-next/ 2>/dev/null || echo "no .open-next dir"
+            echo "❌ .open-next directory not found"
+            exit 1
           fi
 
       - name: Deploy to Cloudflare Workers
-        id: deploy
         run: |
           echo "Deploying to Cloudflare Workers..."
-          npx opennextjs-cloudflare deploy 2>&1 | tee deploy.log
-          echo ""
-          echo "=== deployment log end ==="
+          ./node_modules/.bin/opennextjs-cloudflare deploy 2>&1 || {
+            echo "Deploy with binary failed, trying npx..."
+            npx opennextjs-cloudflare deploy 2>&1
+          }
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Get Worker URL
         run: |
-          echo "✅ Deployment complete!"
-          echo "Worker URL: https://ai-logo-maker.${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.workers.dev"
-          echo ""
-          echo "⚠️  请在 Cloudflare 仪表板配置自定义域名，或更新前端 API_URL"
+          echo "✅ Deployment workflow completed!"
+          echo "Worker URL should be: https://ai-logo-maker.${{ secrets.CLOUDFLARE_ACCOUNT_ID }}.workers.dev"
