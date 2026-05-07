@@ -27,13 +27,30 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
+      - name: Verify OpenNext installed
+        run: |
+          echo "Checking OpenNext..."
+          ls -la node_modules/.bin/opennextjs-cloudflare 2>/dev/null && echo "✅ Local binary found" || echo "❌ Local binary NOT found"
+          node -e "require('@opennextjs/cloudflare'); console.log('✅ OpenNext module loadable')" 2>&1 || echo "⚠️ Module load check failed (non-fatal)"
+
       - name: Build with OpenNext
-        run: npx --package @opennextjs/cloudflare opennextjs-cloudflare build
+        run: ./node_modules/.bin/opennextjs-cloudflare build
         env:
           NODE_ENV: production
 
+      - name: Verify build output
+        run: |
+          if [ -f ".open-next/worker.js" ]; then
+            echo "✅ Build output found (worker.js)"
+            ls -lh .open-next/worker.js
+          else
+            echo "❌ Build output missing"
+            ls -la .open-next/ 2>/dev/null || echo ".open-next/ directory not found"
+            exit 1
+          fi
+
       - name: Deploy to Cloudflare Workers
-        run: npx --package @opennextjs/cloudflare opennextjs-cloudflare deploy
+        run: ./node_modules/.bin/opennextjs-cloudflare deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
