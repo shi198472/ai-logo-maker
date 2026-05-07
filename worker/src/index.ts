@@ -55,7 +55,7 @@ function jsonResponse(data: any, status = 200): Response {
 }
 
 export default {
-  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+  async fetch(request: Request, env: Env, _ctx: unknown): Promise<Response> {
     // OPTIONS 预检
     if (request.method === 'OPTIONS') {
       return new Response(null, { headers: CORS_HEADERS });
