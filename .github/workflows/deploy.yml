@@ -27,12 +27,17 @@ jobs:
       - name: Install dependencies
         run: npm install --legacy-peer-deps
 
-      - name: Build with OpenNext
+      - name: Debug build environment
         run: |
-          echo "Checking node_modules..."
-          ls node_modules/.bin/ | grep opennext || echo "No opennext binary in .bin"
-          echo "=== Run OpenNext build ==="
-          node node_modules/@opennextjs/cloudflare/dist/cli/index.js build
+          echo "Node: $(node --version)"
+          echo "npm: $(npm --version)"
+          echo "PWD: $(pwd)"
+          echo "Files:"
+          ls -la node_modules/.bin/open* 2>&1
+          ls node_modules/@opennextjs 2>&1
+
+      - name: Build with OpenNext
+        run: npx --no-install opennextjs-cloudflare build 2>&1
 
       - name: Verify build output
         run: |
@@ -46,7 +51,7 @@ jobs:
           fi
 
       - name: Deploy to Cloudflare Workers
-        run: node node_modules/@opennextjs/cloudflare/dist/cli/index.js deploy
+        run: npx --no-install opennextjs-cloudflare deploy
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
