@@ -29,9 +29,9 @@ jobs:
 
       - name: Verify OpenNext installed
         run: |
-          echo "Checking OpenNext..."
-          ls -la node_modules/.bin/ | grep opennext
-          npx --yes opennextjs-cloudflare --version 2>&1
+          echo "Checking local OpenNext binary..."
+          ls -la node_modules/.bin/opennextjs-cloudflare* && echo "✅ Binary found"
+          node -e "console.log('Version:', require('@opennextjs/cloudflare/package.json').version)"
 
       - name: Build with OpenNext
         run: npx opennextjs-cloudflare build
