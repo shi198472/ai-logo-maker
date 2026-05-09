@@ -1,61 +1,114 @@
-// AI Binding 诊断端点 - 用于排查 Logo 生成问题
-
+// AI 深度诊断端点 - 实际调用 AI 模型测试
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-const tests: any[] = [];
+function getWorkersAI(): any {
+  try {
+    const ctx = (globalThis as any)[Symbol.for("__cloudflare-context__")]
+    if (ctx?.env?.AI) return ctx.env.AI
+  } catch {/* continue */}
+  try {
+    if ((globalThis as any).AI) return (globalThis as any).AI
+  } catch {/* continue */}
+  try {
+    const symbols = Object.getOwnPropertySymbols(globalThis)
+    for (const sym of symbols) {
+      const val = (globalThis as any)[sym]
+      if (val && typeof val === 'object' && val.env) {
+        if (val.env.AI) return val.env.AI
+      }
+    }
+  } catch {/* continue */}
+  return null
+}
 
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export async function GET(request: Request): Promise<Response> {
-  tests.length = 0;
+interface TestResult {
+  name: string
+  success?: boolean
+  started?: boolean
+  error?: string
+  error_name?: string
+  error_stack?: string | null
+  response_type?: string
+  response_isArrayBuffer?: boolean
+  response_constructor?: string
+  response_size?: number | null
+  response_keys?: string[]
+  response_json?: string
+  response_value?: string
+  decoded_text?: string
+}
 
-  // 测试1: 检查 globalThis.AI
+export async function GET(): Promise<Response> {
+  const AI = getWorkersAI()
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const globalAi = (globalThis as any).AI;
-  tests.push({
-    name: 'globalThis.AI',
-    available: !!globalAi,
-    type: typeof globalAi,
-  });
+  const tests: TestResult[] = []
+  const aiMethods = AI
+    ? Object.getOwnPropertyNames(Object.getPrototypeOf(AI)).concat(Object.keys(AI))
+    : []
 
-  // 测试2: 检查 OpenNext Cloudflare Context (Symbol.for)
+  if (!AI) {
+    return Response.json({ ai_found: false, tests, error: 'AI binding not found' })
+  }
+
+  // 测试1: 尝试调用 AI.run 查看是否报错（使用最小的文本模型）
   try {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const ctx = (globalThis as any)[Symbol.for("__cloudflare-context__")]
-    tests.push({
-      name: 'Symbol.for("__cloudflare-context__")',
-      found: !!ctx,
-      type: typeof ctx,
-      envKeys: ctx?.env ? Object.keys(ctx.env) : [],
-      hasAI: !!(ctx?.env?.AI),
-    });
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  } catch (e: any) {
-    tests.push({ name: 'Symbol.for("__cloudflare-context__")', error: e?.message });
-  }
+    const resp: any = await AI.run('@cf/meta/llama-3-8b-instruct', {
+      prompt: 'Say "OK"',
+      max_tokens: 10,
+    })
+    const t: TestResult = { name: 'AI.run() Llama-3 test', success: true }
+    t.response_type = typeof resp
+    t.response_isArrayBuffer = resp instanceof ArrayBuffer
+    t.response_constructor = resp?.constructor?.name
 
-  // 测试3: 遍历 globalThis 上所有 Symbol 属性
-  const symbols = Object.getOwnPropertySymbols(globalThis);
-  for (const sym of symbols) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const val = (globalThis as any)[sym];
-    if (val && typeof val === 'object' && val.env) {
-      tests.push({
-        name: 'Symbol with env found',
-        symDescription: sym.toString(),
-        envKeys: Object.keys(val.env),
-        hasAI: !!(val.env?.AI),
-        aiType: val.env?.AI ? typeof val.env.AI : 'N/A',
-      });
+    if (resp instanceof ArrayBuffer) {
+      const decoder = new TextDecoder()
+      t.decoded_text = decoder.decode(resp).slice(0, 200)
+      t.response_size = resp.byteLength
+    } else if (typeof resp === 'object' && resp !== null) {
+      t.response_keys = Object.keys(resp)
+      try { t.response_json = JSON.stringify(resp).slice(0, 300) } catch { /* ignore */ }
+    } else {
+      t.response_value = String(resp).slice(0, 200)
     }
+    tests.push(t)
+  } catch (e: unknown) {
+    tests.push({
+      name: 'AI.run() Llama-3 test',
+      success: false,
+      error: e instanceof Error ? e.message : String(e),
+      error_name: e instanceof Error ? e.name : typeof e,
+    })
   }
 
-  // 综合结果
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const aiAvailable = tests.some((t: any) => t.hasAI === true);
+  // 测试2: 尝试 SD 模型
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const sdResp: any = await AI.run('@cf/stabilityai/stable-diffusion-xl-base-1.0', {
+      prompt: 'A simple red circle on white background, minimal',
+      width: 256,
+      height: 256,
+      num_steps: 5,
+    })
+    const t: TestResult = { name: 'Stable Diffusion test', success: true }
+    t.response_type = typeof sdResp
+    t.response_isArrayBuffer = sdResp instanceof ArrayBuffer
+    t.response_constructor = sdResp?.constructor?.name
+    t.response_size = sdResp instanceof ArrayBuffer ? sdResp.byteLength : null
+    tests.push(t)
+  } catch (e: unknown) {
+    tests.push({
+      name: 'Stable Diffusion test',
+      success: false,
+      error: e instanceof Error ? e.message : String(e),
+      error_name: e instanceof Error ? e.name : typeof e,
+    })
+  }
 
   return Response.json({
-    success: true,
-    ai_available: aiAvailable,
+    ai_found: true,
+    ai_type: typeof AI,
+    ai_methods: aiMethods,
     tests,
-    timestamp: new Date().toISOString(),
-  });
+  })
 }
