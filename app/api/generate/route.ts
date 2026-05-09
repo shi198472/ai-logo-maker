@@ -1,5 +1,5 @@
 // Next.js App Router API Route for Logo Generation
-// OpenNext 会将此路由编译到 Cloudflare Worker 中
+// === 多重回退策略获取 Workers AI Binding ===
 
 const INDUSTRY_PROMPTS: Record<string, string> = {
   tech: 'technology company, futuristic, digital innovation, clean professional',
@@ -34,6 +34,37 @@ interface GenerateBody {
   style?: string
 }
 
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function getWorkersAI(): any {
+  // 策略1: 通过 OpenNext Cloudflare Context (Symbol.for)
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ctx = (globalThis as any)[Symbol.for("__cloudflare-context__")]
+    if (ctx?.env?.AI) return ctx.env.AI
+  } catch {/* continue */}
+
+  // 策略2: 直接检查 globalThis.AI (某些 Wrangler 版本会注入)
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if ((globalThis as any).AI) return (globalThis as any).AI
+  } catch {/* continue */}
+
+  // 策略3: 遍历所有 Symbol 属性查找 Cloudflare 上下文
+  try {
+    const symbols = Object.getOwnPropertySymbols(globalThis)
+    for (const sym of symbols) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const val = (globalThis as any)[sym as unknown as string]
+      if (val && typeof val === 'object' && val.env) {
+        const envAI = val.env.AI
+        if (envAI) return envAI
+      }
+    }
+  } catch {/* continue */}
+
+  return null
+}
+
 export async function POST(request: Request): Promise<Response> {
   try {
     const body = (await request.json()) as GenerateBody
@@ -52,12 +83,8 @@ export async function POST(request: Request): Promise<Response> {
       `Clean white background, centered icon, no text or words, vector style, high contrast, ` +
       `award winning design quality, suitable for commercial use`
 
-    // 通过 OpenNext Cloudflare Context 获取 env.AI
-    // OpenNext 将 env 存储在 globalThis[Symbol.for("__cloudflare-context__")] 中
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const cloudflareContext = (globalThis as any)[Symbol.for("__cloudflare-context__")]
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const AI = cloudflareContext?.env?.AI as any
+    // 获取 Workers AI (多重策略)
+    const AI = getWorkersAI()
 
     if (!AI) {
       console.warn('Workers AI not available, returning fallback')
@@ -65,18 +92,17 @@ export async function POST(request: Request): Promise<Response> {
         success: true,
         logos: buildFallbackLogos(brand, industry, style),
         fallback: true,
-        message: 'Workers AI 未配置，请联系管理员启用 Workers AI',
+        message: 'Workers AI not configured. Please check Cloudflare Workers AI binding.',
       })
     }
 
-    // 确保 AI 有 run 方法
     if (!AI.run || typeof AI.run !== 'function') {
-      console.warn('Workers AI.run method not available, returning fallback')
+      console.warn('Workers AI.run not available, returning fallback')
       return Response.json({
         success: true,
         logos: buildFallbackLogos(brand, industry, style),
         fallback: true,
-        message: 'Workers AI 方法不可用，请联系管理员检查配置',
+        message: 'Workers AI.run method not available.',
       })
     }
 
@@ -94,7 +120,7 @@ export async function POST(request: Request): Promise<Response> {
               'text, words, letters, watermark, signature, blurry, low quality, distorted, ugly',
             width: 1024,
             height: 1024,
-            num_steps: 25,
+            num_steps: 20,
           }
         )) as { image?: string }
 
@@ -106,7 +132,7 @@ export async function POST(request: Request): Promise<Response> {
           description: `${stylePrompt.split(' ')[0]} · ${industryPrompt.split(' ')[0]}`,
         }
       } catch (err) {
-        const message = err instanceof Error ? err.message : '生成失败'
+        const message = err instanceof Error ? err.message : 'Generation failed'
         console.error(`Logo ${i + 1} failed:`, message)
         return {
           id: i + 1,
@@ -121,8 +147,10 @@ export async function POST(request: Request): Promise<Response> {
 
     const results = await Promise.all(tasks)
     return Response.json({ success: true, logos: results })
-  } catch {
-    return Response.json({ error: '请求处理失败' }, { status: 500 })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : 'Unknown error'
+    console.error('Route error:', msg)
+    return Response.json({ error: msg }, { status: 500 })
   }
 }
 
