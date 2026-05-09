@@ -103,14 +103,14 @@ export async function POST(request: Request): Promise<Response> {
       })
     }
 
-    // 并发生成 6 款不同配色的 Logo
+    // 并发生成 3 款不同配色的 Logo
     const tasks = COLOR_SCHEMES.map(async (scheme, i) => {
       try {
         const fullPrompt =
           aiPrompt +
           `, color palette: ${scheme.primary} as dominant color with ${scheme.secondary}`
-        // Workers AI 的 SD 模型返回 ArrayBuffer（二进制图片数据），不是 JSON
-        const response = await AI.run(
+        // Worker AI 的 SD 模型返回 ReadableStream（流式二进制数据）
+        const stream = await AI.run(
           '@cf/stabilityai/stable-diffusion-xl-base-1.0',
           {
             prompt: fullPrompt,
@@ -122,19 +122,37 @@ export async function POST(request: Request): Promise<Response> {
           }
         )
 
-        // 将 ArrayBuffer 转换为 base64 字符串
+        // 从 ReadableStream 读取二进制数据 → base64
         let imageData: string | null = null
-        if (response) {
-          const bytes = new Uint8Array(response)
-          let binary = ''
-          const chunkSize = 8192
-          for (let j = 0; j < bytes.length; j += chunkSize) {
-            binary += String.fromCharCode.apply(
-              null,
-              Array.from(bytes.slice(j, j + chunkSize)) as number[]
-            )
+        if (stream) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const reader = (stream as any).getReader?.()
+          if (reader) {
+            const chunks: Uint8Array[] = []
+            while (true) {
+              const { done, value } = await reader.read()
+              if (done) break
+              if (value) chunks.push(value)
+            }
+            // 合并所有 chunks
+            const totalLen = chunks.reduce((sum, c) => sum + c.length, 0)
+            const merged = new Uint8Array(totalLen)
+            let offset = 0
+            for (const chunk of chunks) {
+              merged.set(chunk, offset)
+              offset += chunk.length
+            }
+            // Uint8Array → base64
+            let binary = ''
+            const chunkSize = 8192
+            for (let j = 0; j < merged.length; j += chunkSize) {
+              binary += String.fromCharCode.apply(
+                null,
+                Array.from(merged.slice(j, j + chunkSize)) as number[]
+              )
+            }
+            imageData = btoa(binary)
           }
-          imageData = btoa(binary)
         }
 
         return {
