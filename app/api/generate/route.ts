@@ -23,9 +23,6 @@ const COLOR_SCHEMES = [
   { primary: 'deep blue', secondary: 'purple accent' },
   { primary: 'warm orange', secondary: 'red accent' },
   { primary: 'forest green', secondary: 'teal accent' },
-  { primary: 'hot pink', secondary: 'violet accent' },
-  { primary: 'bright cyan', secondary: 'blue accent' },
-  { primary: 'orange', secondary: 'dark red accent' },
 ];
 
 interface GenerateBody {
@@ -112,23 +109,39 @@ export async function POST(request: Request): Promise<Response> {
         const fullPrompt =
           aiPrompt +
           `, color palette: ${scheme.primary} as dominant color with ${scheme.secondary}`
-        const result = (await AI.run(
+        // Workers AI 的 SD 模型返回 ArrayBuffer（二进制图片数据），不是 JSON
+        const response = await AI.run(
           '@cf/stabilityai/stable-diffusion-xl-base-1.0',
           {
             prompt: fullPrompt,
             negative_prompt:
               'text, words, letters, watermark, signature, blurry, low quality, distorted, ugly',
-            width: 1024,
-            height: 1024,
-            num_steps: 20,
+            width: 512,
+            height: 512,
+            num_steps: 15,
           }
-        )) as { image?: string }
+        )
+
+        // 将 ArrayBuffer 转换为 base64 字符串
+        let imageData: string | null = null
+        if (response) {
+          const bytes = new Uint8Array(response)
+          let binary = ''
+          const chunkSize = 8192
+          for (let j = 0; j < bytes.length; j += chunkSize) {
+            binary += String.fromCharCode.apply(
+              null,
+              Array.from(bytes.slice(j, j + chunkSize)) as number[]
+            )
+          }
+          imageData = btoa(binary)
+        }
 
         return {
           id: i + 1,
-          name: ['Core', 'Nova', 'Peak', 'Lux', 'Arc', 'Zoe'][i],
+          name: ['Core', 'Nova', 'Peak'][i],
           colors: [scheme.primary, scheme.secondary],
-          imageData: result?.image || null,
+          imageData,
           description: `${stylePrompt.split(' ')[0]} · ${industryPrompt.split(' ')[0]}`,
         }
       } catch (err) {
@@ -136,7 +149,7 @@ export async function POST(request: Request): Promise<Response> {
         console.error(`Logo ${i + 1} failed:`, message)
         return {
           id: i + 1,
-          name: ['Core', 'Nova', 'Peak', 'Lux', 'Arc', 'Zoe'][i],
+          name: ['Core', 'Nova', 'Peak'][i],
           colors: [scheme.primary, scheme.secondary],
           imageData: null,
           error: message,
@@ -159,7 +172,7 @@ function buildFallbackLogos(brand: string, industry: string, style: string) {
   const stylePrompt = STYLE_PROMPTS[style] || STYLE_PROMPTS.modern
   return COLOR_SCHEMES.map((scheme, i) => ({
     id: i + 1,
-    name: ['Core', 'Nova', 'Peak', 'Lux', 'Arc', 'Zoe'][i],
+    name: ['Core', 'Nova', 'Peak'][i],
     colors: [scheme.primary, scheme.secondary],
     imageData: null,
     error: null,
