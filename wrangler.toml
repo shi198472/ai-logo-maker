@@ -1,6 +1,9 @@
 name = "ai-logo-maker"
-compatibility_date = "2026-05-01"
+main = ".open-next/worker.js"
+compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat"]
+account_id = "81ce8be70826ee35c3883efd2531225b"
 
+# Workers AI Binding for Logo Generation
 [ai]
 binding = "AI"

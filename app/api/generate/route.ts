@@ -52,9 +52,12 @@ export async function POST(request: Request): Promise<Response> {
       `Clean white background, centered icon, no text or words, vector style, high contrast, ` +
       `award winning design quality, suitable for commercial use`
 
-    // 检查 AI 环境变量（OpenNext 会在 Cloudflare Workers 中注入 env.AI）
+    // 通过 OpenNext Cloudflare Context 获取 env.AI
+    // OpenNext 将 env 存储在 globalThis[Symbol.for("__cloudflare-context__")] 中
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const AI = (globalThis as Record<string, unknown>).AI as any
+    const cloudflareContext = (globalThis as any)[Symbol.for("__cloudflare-context__")]
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const AI = cloudflareContext?.env?.AI as any
 
     if (!AI) {
       console.warn('Workers AI not available, returning fallback')
@@ -63,6 +66,17 @@ export async function POST(request: Request): Promise<Response> {
         logos: buildFallbackLogos(brand, industry, style),
         fallback: true,
         message: 'Workers AI 未配置，请联系管理员启用 Workers AI',
+      })
+    }
+
+    // 确保 AI 有 run 方法
+    if (!AI.run || typeof AI.run !== 'function') {
+      console.warn('Workers AI.run method not available, returning fallback')
+      return Response.json({
+        success: true,
+        logos: buildFallbackLogos(brand, industry, style),
+        fallback: true,
+        message: 'Workers AI 方法不可用，请联系管理员检查配置',
       })
     }
 
